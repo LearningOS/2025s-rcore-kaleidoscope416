@@ -54,6 +54,7 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
+            task_syscall_count: [0;5]
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
             task.task_cx = TaskContext::goto_restore(init_app_cx(i));
@@ -133,6 +134,30 @@ impl TaskManager {
             // go back to user mode
         } else {
             panic!("All applications completed!");
+        }
+    }
+    ///213
+    pub fn syscall_plus (&self,_id:usize){
+        let current_index = self.inner.exclusive_access().current_task;
+        match _id {
+            64 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[0]+=1,
+            93 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[1]+=1,
+            124 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[2]+=1,
+            169 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[3]+=1,
+            410 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[4]+=1,
+            _=> panic!("Unsupported syscall_id: {}", _id),
+        }
+    }
+    ///234
+    pub fn syscall_count (&self,_id:usize) -> isize{
+        let current_index = self.inner.exclusive_access().current_task;
+        match _id {
+            64 => return self.inner.exclusive_access().tasks[current_index].task_syscall_count[0],
+            93 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[1],
+            124 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[2],
+            169 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[3],
+            410 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[4],
+            _=> panic!("Unsupported syscall_id: {}", _id),
         }
     }
 }
