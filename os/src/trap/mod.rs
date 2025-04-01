@@ -15,7 +15,7 @@
 mod context;
 
 use crate::syscall::syscall;
-use crate::task::{exit_current_and_run_next, suspend_current_and_run_next,TASK_MANAGER};
+use crate::task::{exit_current_and_run_next, suspend_current_and_run_next};
 use crate::timer::set_next_trigger;
 use core::arch::global_asm;
 use riscv::register::{
@@ -54,7 +54,7 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
             // jump to next instruction anyway
             cx.sepc += 4;
             // get system call return value
-            TASK_MANAGER.syscall_plus(cx.x[17]);
+             
             cx.x[10] = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]) as usize;
         }
         Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::StorePageFault) => {

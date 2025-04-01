@@ -42,7 +42,7 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 // TODO: implement the syscall
 pub fn sys_trace(_trace_request: usize, _id: usize, _data: usize) -> isize {
     trace!("kernel: sys_trace");
-    match _id {
+    match _trace_request {
         0=>{
             unsafe{return *(_id as *const u8 )as isize} 
         }
