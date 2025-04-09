@@ -15,15 +15,16 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::{ MapPermission, PageTable, VirtAddr, VirtPageNum};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
 use lazy_static::*;
+
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
-
 pub use context::TaskContext;
-
+use crate::mm::frame_allocator::FRAME_ALLOCATOR;
 /// The task manager, where all the tasks are managed.
 ///
 /// Functions implemented on `TaskManager` deals with all task state transitions
@@ -182,6 +183,63 @@ impl TaskManager {
             410 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[7],
             _=> panic!("Unsupported syscall_id: {}", _id),
         }
+    }
+
+    /// only insert framed area
+    pub fn mmap(&self,start:usize,end:usize,perm:MapPermission)->isize{
+        //检查物理frame number
+        if (end-start+4095)/4096 > FRAME_ALLOCATOR.exclusive_access().number(){
+            
+            return -1
+            
+        }
+        //检查页号分配
+        let svpn = VirtAddr::from(start).floor();
+        let evpn =VirtAddr::from(end).ceil();
+        for i in svpn.0..evpn.0{
+            let vpn = VirtPageNum::from(i);
+            let page_table = PageTable::from_token(current_user_token());
+            let out = page_table.find_pte(vpn);
+            if out.is_some()&&out.unwrap().is_valid() {
+                    println!("sadfasdfasdfasdfasdf");
+                    return -1;
+                }
+            
+        }
+        let start_va = VirtAddr::from(start);
+        let end_va = VirtAddr::from(end);
+        let current_index = self.inner.exclusive_access().current_task; 
+        //insert
+        self.inner.exclusive_access()
+        .tasks[current_index]
+        .memory_set
+        .insert_framed_area(start_va,end_va,perm|MapPermission::U);
+        return 0;
+    }
+    /// munmap
+    pub fn munmap(&self,start:usize,end:usize)->isize{
+        let svpn = VirtAddr::from(start).floor();
+        let evpn =VirtAddr::from(end).ceil();
+        for i in svpn.0..evpn.0{
+            let vpn = VirtPageNum::from(i);
+            let page_table = PageTable::from_token(current_user_token());
+            let out = page_table.find_pte(vpn);
+            if out.is_none() { 
+                return -1
+            } else {
+                if !out.unwrap().is_valid(){return -1;}   
+            }
+          
+        }
+        //remove 
+        let start_va = VirtAddr::from(start);
+        let end_va = VirtAddr::from(end);
+        let current_index = self.inner.exclusive_access().current_task; 
+        self.inner.exclusive_access()
+        .tasks[current_index]
+        .memory_set 
+        .remove_framed_area(start_va, end_va)
+        
     }
 }
 

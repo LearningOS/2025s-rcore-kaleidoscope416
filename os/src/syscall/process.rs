@@ -1,10 +1,9 @@
 //! Process management syscalls
-use riscv::addr::page;
 
-use crate::mm::{frame_alloc, translated_byte_buffer, PageTable, VirtPageNum};
+use crate::mm::{translated_byte_buffer, MapPermission, PageTable};
 use crate::task::{change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next};
 use crate::timer::get_time_us;
-use core::marker::StructuralPartialEq;
+
 use core::{ptr,mem::size_of};
 use crate::task::TASK_MANAGER;
 use crate::mm::VirtAddr;
@@ -68,7 +67,7 @@ pub fn sys_trace(_trace_request: usize, _id: usize, _data: usize) -> isize {
             let start_va = VirtAddr::from(_id);
             let page_table = PageTable::from_token(token);
             let pte = page_table.translate(start_va.floor());
-            if pte.is_none() || !pte.unwrap().readable() {
+            if pte.is_none() || !pte.unwrap().readable() || !pte.unwrap().usermode(){
                 return -1;
             }
             else {
@@ -103,32 +102,31 @@ pub fn sys_trace(_trace_request: usize, _id: usize, _data: usize) -> isize {
         _=>-1
     }
 }
-
+#[allow(dead_code)]
+pub fn permission(p:usize)->MapPermission{
+    let mut out : MapPermission = MapPermission::empty();
+    if (p & 0b1) == 0b1 { out =out | MapPermission::R;}
+    if (p & 0b10) == 0b10 { out = out | MapPermission::W;}
+    if (p & 0b100) == 0b100 { out = out | MapPermission::X;}
+    out 
+}
 // YOUR JOB: Implement mmap.
 pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
     trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    if _start%4096 != 0 || prot & !0x7 != 0 || prot & 0x7 = 0 {
+    if _start%4096 != 0 || _port & !0x7 != 0 || _port & 0x7 == 0 {
         return -1;
     }
-    let len = VirtPageNum::from((_len+4095)/4096);
-    let start_vpn = VirtAddr::from(_start).floor();
-    let end_vpn = VirtPageNum::from(start_vpn.0+len.0);
-    let token = current_user_token();
-    for i in start_vpn .. end_vpn{
-        let page_table = PageTable::from_token(token);
-        let out = page_table.translate(i);
-        if out.is_some()&& !out.unwrap().is_valid(){
-            return -1;
-        }
-        let ppn_ft = frame_alloc();
-        page_table.map(i,  ppn_ft.ppn , flags);
-    }
+    let perm = permission(_port);
+    TASK_MANAGER.mmap(_start,_start+_len,perm)
 }
 
 // YOUR JOB: Implement munmap.
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
     trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    -1
+    if _start%4096!=0||_len%4096!=0{
+        return -1;
+    }
+    TASK_MANAGER.munmap(_start,_start+_len)
 }
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {

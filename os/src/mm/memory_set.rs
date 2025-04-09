@@ -63,6 +63,23 @@ impl MemorySet {
             None,
         );
     }
+    ///remove a maparea
+    pub fn remove_framed_area ( &mut self,
+        start_va: VirtAddr,
+        end_va: VirtAddr
+        ) -> isize{
+        let mut out :isize = -1;
+        self.areas.retain_mut(|v|{
+            if v.vpn_range.get_start() == start_va.floor() && v.vpn_range.get_end() == end_va.ceil() {
+                v.unmap(&mut self.page_table);
+                out = 0;
+                false
+            }else {
+                true
+            }
+        });
+        out
+    }
     fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
         map_area.map(&mut self.page_table);
         if let Some(data) = data {
@@ -365,7 +382,7 @@ pub enum MapType {
     Framed,
 }
 
-bitflags! {
+bitflags! {     
     /// map permission corresponding to that in pte: `R W X U`
     pub struct MapPermission: u8 {
         ///Readable
