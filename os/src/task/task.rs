@@ -34,6 +34,10 @@ pub struct TaskControlBlock {
 }
 
 impl TaskControlBlock {
+    /// get the Memory set
+    pub fn get_memory_set (& self)->    &'static mut MemorySet {
+        self.memory_set.get_mut()
+    }
     /// get the trap context
     pub fn get_trap_cx(&self) -> &'static mut TrapContext {
         self.trap_cx_ppn.get_mut()
