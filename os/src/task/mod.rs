@@ -153,6 +153,36 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+    ///213
+    pub fn syscall_plus (&self,_id:usize){
+        let current_index = self.inner.exclusive_access().current_task;
+        match _id {
+            64=> self.inner.exclusive_access().tasks[current_index].task_syscall_count[0]+=1,
+            93 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[1]+=1,
+            124 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[2]+=1,
+            169 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[3]+=1,
+            214 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[4]+=1,
+            215 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[5]+=1,
+            222 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[6]+=1,
+            410 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[7]+=1,
+            _=> panic!("Unsupported syscall_id: {}", _id),
+        }
+    }
+    ///234
+    pub fn syscall_count (&self,_id:usize) -> isize{
+        let current_index = self.inner.exclusive_access().current_task;
+        match _id {
+            64=> self.inner.exclusive_access().tasks[current_index].task_syscall_count[0],
+            93 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[1],
+            124 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[2],
+            169 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[3],
+            214 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[4],
+            215 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[5],
+            222 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[6],
+            410 => self.inner.exclusive_access().tasks[current_index].task_syscall_count[7],
+            _=> panic!("Unsupported syscall_id: {}", _id),
+        }
+    }
 }
 
 /// Run the first task in task list.
