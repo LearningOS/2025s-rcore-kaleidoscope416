@@ -6,19 +6,26 @@ use alloc::vec::Vec;
 use bitflags::*;
 
 bitflags! {
-    /// page table entry flags
+    /// 页表项标志位
     pub struct PTEFlags: u8 {
+        /// 有效位
         const V = 1 << 0;
+        /// 读权限位
         const R = 1 << 1;
+        /// 写权限位
         const W = 1 << 2;
+        /// 执行权限位
         const X = 1 << 3;
+        /// 用户模式访问位
         const U = 1 << 4;
+        /// 全局页位
         const G = 1 << 5;
+        /// 访问位
         const A = 1 << 6;
+        /// 脏位
         const D = 1 << 7;
     }
 }
-
 #[derive(Copy, Clone)]
 #[repr(C)]
 /// page table entry structure
@@ -108,7 +115,7 @@ impl PageTable {
         result
     }
     /// Find PageTableEntry by VirtPageNum
-    fn find_pte(&self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
+    pub fn find_pte(&self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
         let idxs = vpn.indexes();
         let mut ppn = self.root_ppn;
         let mut result: Option<&mut PageTableEntry> = None;

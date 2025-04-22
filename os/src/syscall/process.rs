@@ -9,6 +9,11 @@ use crate::{
         suspend_current_and_run_next,
     },
 };
+use crate::mm::{translated_byte_buffer, MapPermission,mmap,munmap};
+
+use crate::timer::get_time_us;
+use core::mem::size_of;
+use core::ptr;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -106,29 +111,54 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+    trace!("kernel: sys_get_time");
+    let us = get_time_us();
+    let token = current_user_token();
+    let mut buffers = translated_byte_buffer(token, _ts as *const u8, size_of::<TimeVal>());
+    let time_val = TimeVal {
+        sec: us / 1_000_000,
+        usec: us % 1_000_000,
+    };
+    let _bytes = unsafe {
+        let mut bytes = [0u8; size_of::<TimeVal>()];
+        ptr::copy_nonoverlapping(&time_val as *const TimeVal as *const u8, bytes.as_mut_ptr(), bytes.len());
+        bytes
+    };
+    if buffers.len() == 1 {
+        buffers[0].copy_from_slice(&_bytes);
+    }
+    else if buffers.len() == 2 {
+        let len = buffers[0].len();
+        buffers[0].copy_from_slice(&_bytes[0..len]);
+        buffers[1].copy_from_slice(&_bytes[len..]);
+    }
+    0
 }
 
+pub fn permission(p:usize)->MapPermission{
+    let mut out : MapPermission = MapPermission::empty();
+    if (p & 0b1) == 0b1 { out =out | MapPermission::R;}
+    if (p & 0b10) == 0b10 { out = out | MapPermission::W;}
+    if (p & 0b100) == 0b100 { out = out | MapPermission::X;}
+    out 
+}
 /// YOUR JOB: Implement mmap.
 pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+    //trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
+    if _start%4096 != 0 || _port & !0x7 != 0 || _port & 0x7 == 0 {
+        return -1;
+    }
+    let perm = permission(_port);
+    mmap(_start,_start+_len,perm)
 }
+
 
 /// YOUR JOB: Implement munmap.
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+    if _start%4096!=0||_len%4096!=0{
+        return -1;
+    }
+    munmap(_start,_start+_len)
 }
 
 /// change data segment size
@@ -145,17 +175,44 @@ pub fn sys_sbrk(size: i32) -> isize {
 /// HINT: fork + exec =/= spawn
 pub fn sys_spawn(_path: *const u8) -> isize {
     trace!(
-        "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_spawn IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let token = current_user_token();
+    let path = translated_str(token, _path);
+    if let Some(data) = get_app_data_by_name(path.as_str()) {
+        
+        let task = current_task().unwrap();
+        
+        let new_task = task.spawn(data);
+        let new_pid = new_task.pid.0;
+        // modify trap context of new_task, because it returns immediately after switching
+        let trap_cx = new_task.inner_exclusive_access().get_trap_cx();
+        // we do not have to move to next instruction since we have done it before
+        // for child process, fork returns 0
+        trap_cx.x[10] = 0;
+        // add new task to scheduler
+        add_task(new_task);
+        new_pid as isize
+
+    } else {
+        -1
+    }
 }
 
 // YOUR JOB: Set task priority.
 pub fn sys_set_priority(_prio: isize) -> isize {
     trace!(
-        "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_set_priority IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+
+    if _prio < 2 {
+        return -1;
+    }
+    current_task()
+    .unwrap()
+    .inner_exclusive_access()
+    .priority = _prio as usize;
+    _prio
 }
