@@ -16,7 +16,7 @@
 mod context;
 mod id;
 mod manager;
-mod processor;
+pub mod processor;
 mod switch;
 #[allow(clippy::module_inception)]
 #[allow(rustdoc::private_intra_doc_links)]

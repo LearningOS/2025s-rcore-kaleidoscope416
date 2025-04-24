@@ -100,6 +100,15 @@ impl OpenFlags {
         }
     }
 }
+/// link old new
+pub fn old_link_new ( old_name:&str , new_name: &str){
+    ROOT_INODE.old_linkat_new(old_name, new_name);
+}
+
+/// unlinkat
+pub fn unlinkat_path(name: &str){
+    ROOT_INODE.unlinkat_path(name);
+}
 
 /// Open a file
 pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {

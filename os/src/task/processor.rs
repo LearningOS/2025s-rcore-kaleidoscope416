@@ -11,7 +11,7 @@ use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::sync::Arc;
 use lazy_static::*;
-
+use crate::config::BIG_STRIDE;
 /// Processor management structure
 pub struct Processor {
     ///The task currently executing on the current processor
@@ -47,6 +47,7 @@ impl Processor {
 }
 
 lazy_static! {
+    /// static processor
     pub static ref PROCESSOR: UPSafeCell<Processor> = unsafe { UPSafeCell::new(Processor::new()) };
 }
 
@@ -61,12 +62,14 @@ pub fn run_tasks() {
             let mut task_inner = task.inner_exclusive_access();
             let next_task_cx_ptr = &task_inner.task_cx as *const TaskContext;
             task_inner.task_status = TaskStatus::Running;
+            
+            //增加步长
+            let pass = BIG_STRIDE/task_inner.priority;
+            task_inner.stride+=pass;
+            
             // release coming task_inner manually
             drop(task_inner);
             // release coming task TCB manually
-            processor.current = Some(task);
-            // release processor manually
-            drop(processor);
             unsafe {
                 __switch(idle_task_cx_ptr, next_task_cx_ptr);
             }

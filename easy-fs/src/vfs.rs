@@ -41,6 +41,78 @@ impl Inode {
             .lock()
             .modify(self.block_offset, f)
     }
+
+    /// unlinkat a path 
+    pub fn unlinkat_path (&self, name: &str){
+        let mut id = 0;
+
+        self.read_disk_inode(|disk_inode|{
+            assert!(disk_inode.is_dir());
+            if let Some(inode_id) = self.find_inode_id(name, disk_inode){
+                id = inode_id;
+            }
+        });
+        // only delete link
+        if self.num_of_linkat(id) > 1 {
+            self.modify_disk_inode(|disk_inode|{
+                assert!(disk_inode.is_dir());
+                let file_count = (disk_inode.size as usize) / DIRENT_SZ;
+                let  dirent = DirEntry::empty();
+                for i in 0..file_count {
+                    if dirent.name()== name {
+                       disk_inode.write_at(DIRENT_SZ * i, dirent.as_bytes(), &self.block_device);
+                    }
+                }
+            })
+        } else {
+            self.modify_disk_inode(|disk_inode|{
+                let inode  = self.find(name);
+                inode.unwrap().clear();
+                assert!(disk_inode.is_dir());
+                let file_count = (disk_inode.size as usize) / DIRENT_SZ;
+                let  dirent = DirEntry::empty();
+                for i in 0..file_count {
+                    if dirent.name()== name {
+                       disk_inode.write_at(DIRENT_SZ * i, dirent.as_bytes(), &self.block_device);
+                    }
+                }
+            })
+        }
+    }
+    /// number of linkat
+    fn num_of_linkat(&self,id:u32) -> i32{
+        let mut number = 0;
+        self.read_disk_inode(|disk_inode|{
+            assert!(disk_inode.is_dir());
+            let file_count = (disk_inode.size as usize) / DIRENT_SZ;
+            let mut dirent = DirEntry::empty();
+            for i in 0..file_count {
+                assert_eq!(
+                    disk_inode.read_at(DIRENT_SZ * i, dirent.as_bytes_mut(), &self.block_device,),
+                    DIRENT_SZ,
+                );
+                if dirent.inode_id()== id {
+                    number += 1;
+                }
+            }
+        });
+        number
+    }
+    /// copy a inode_id from old to new
+    pub fn old_linkat_new(&self, old_name:&str, new_name:&str) {
+        let mut old_id: u32 = 0;
+        
+        self.read_disk_inode(|disk_inode|{
+            assert!(disk_inode.is_dir());
+            if let Some(inode_id) = self.find_inode_id(old_name, disk_inode){
+                old_id = inode_id;
+            }
+        });
+        let new_direntry = DirEntry::new(new_name, old_id);
+        self.modify_disk_inode(|disk_inode|{
+            disk_inode.write_at(disk_inode.size as usize , new_direntry.as_bytes(), &self.block_device);
+        })
+    }
     /// Find inode under a disk inode by name
     fn find_inode_id(&self, name: &str, disk_inode: &DiskInode) -> Option<u32> {
         // assert it is a directory

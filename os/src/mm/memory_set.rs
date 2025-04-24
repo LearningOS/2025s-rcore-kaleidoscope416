@@ -78,6 +78,24 @@ impl MemorySet {
             self.areas.remove(idx);
         }
     }
+      ///remove a maparea
+      pub fn remove_framed_area ( &mut self,
+        start_va: VirtAddr,
+        end_va: VirtAddr
+        ) -> isize{
+        let mut out :isize = -1;
+        self.areas.retain_mut(|v|{
+            if v.vpn_range.get_start() == start_va.floor() && v.vpn_range.get_end() == end_va.ceil() {
+                v.unmap(&mut self.page_table);
+                out = 0;
+                false
+            }else {
+                true
+            }
+        });
+        out
+    }
+    
     /// Add a new MapArea into this MemorySet.
     /// Assuming that there are no conflicts in the virtual address
     /// space.
