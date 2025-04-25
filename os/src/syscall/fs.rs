@@ -1,7 +1,11 @@
 //! File and filesystem-related syscalls
-use crate::fs::{open_file, OpenFlags, Stat,old_link_new,unlinkat_path};
+
+
+use crate::fs::{old_link_new, open_file, unlinkat_path, OpenFlags, Stat};
 use crate::mm::{translated_byte_buffer, translated_str, UserBuffer};
 use crate::task::{current_task, current_user_token};
+use core::mem::size_of;
+use core::ptr;
 
 pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
     trace!("kernel:pid[{}] sys_write", current_task().unwrap().pid.0);
@@ -77,10 +81,35 @@ pub fn sys_close(fd: usize) -> isize {
 
 /// YOUR JOB: Implement fstat.
 pub fn sys_fstat(_fd: usize, _st: *mut Stat) -> isize {
-    trace!(
+    /*trace!(
         "kernel:pid[{}] sys_fstat NOT IMPLEMENTED",
         current_task().unwrap().pid.0
-    );
+    );*/
+    let task = current_task().unwrap();
+    let inner = task.inner_exclusive_access();
+
+    let Some(file) = inner.fd_table[_fd].clone() else {
+        return -1;
+    };
+    let stat = file.stat().unwrap();
+    drop(inner);
+    
+    let token = current_user_token();
+    let mut buffers = translated_byte_buffer(token, _st as *const u8, size_of::<Stat>());
+   
+    let _bytes = unsafe {
+        let mut bytes = [0u8; size_of::<Stat>()];
+        ptr::copy_nonoverlapping(&stat as *const Stat as *const u8, bytes.as_mut_ptr(), bytes.len());
+        bytes
+    };
+    if buffers.len() == 1 {
+        buffers[0].copy_from_slice(&_bytes);
+    }
+    else if buffers.len() == 2 {
+        let len = buffers[0].len();
+        buffers[0].copy_from_slice(&_bytes[0..len]);
+        buffers[1].copy_from_slice(&_bytes[len..]);
+    }
     0
 }
 

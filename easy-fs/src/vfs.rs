@@ -8,9 +8,12 @@ use alloc::vec::Vec;
 use spin::{Mutex, MutexGuard};
 /// Virtual filesystem layer over easy-fs
 pub struct Inode {
-    block_id: usize,
-    block_offset: usize,
-    fs: Arc<Mutex<EasyFileSystem>>,
+    /// block_id
+    pub block_id: usize,
+    /// offset
+    pub block_offset: usize,
+    /// Arc for fs
+    pub fs: Arc<Mutex<EasyFileSystem>>,
     block_device: Arc<dyn BlockDevice>,
 }
 
@@ -28,6 +31,18 @@ impl Inode {
             fs,
             block_device,
         }
+    }
+    /// inode status
+    pub fn stat(&self) -> (u64,bool) {
+        let id = self.find_inode_id_by_inode() as u64;
+        let mut ty_pe = false;
+        
+        self.read_disk_inode(|disk_inode|{
+            if disk_inode.is_file(){
+                ty_pe = true;
+            }
+        });
+        (id,ty_pe)
     }
     /// Call a function over a disk inode to read it
     fn read_disk_inode<V>(&self, f: impl FnOnce(&DiskInode) -> V) -> V {
@@ -57,10 +72,15 @@ impl Inode {
             self.modify_disk_inode(|disk_inode|{
                 assert!(disk_inode.is_dir());
                 let file_count = (disk_inode.size as usize) / DIRENT_SZ;
-                let  dirent = DirEntry::empty();
+                let mut dirent = DirEntry::empty();
+                let  dirent_empty = DirEntry::empty();
                 for i in 0..file_count {
+                    assert_eq!(
+                        disk_inode.read_at(DIRENT_SZ * i, dirent.as_bytes_mut(), &self.block_device,),
+                        DIRENT_SZ,
+                    );
                     if dirent.name()== name {
-                       disk_inode.write_at(DIRENT_SZ * i, dirent.as_bytes(), &self.block_device);
+                       disk_inode.write_at(DIRENT_SZ * i, dirent_empty.as_bytes(), &self.block_device);
                     }
                 }
             })
@@ -70,17 +90,22 @@ impl Inode {
                 inode.unwrap().clear();
                 assert!(disk_inode.is_dir());
                 let file_count = (disk_inode.size as usize) / DIRENT_SZ;
-                let  dirent = DirEntry::empty();
+                let mut dirent = DirEntry::empty();
+                let  dirent_empty = DirEntry::empty();
                 for i in 0..file_count {
+                    assert_eq!(
+                        disk_inode.read_at(DIRENT_SZ * i, dirent.as_bytes_mut(), &self.block_device,),
+                        DIRENT_SZ,
+                    );
                     if dirent.name()== name {
-                       disk_inode.write_at(DIRENT_SZ * i, dirent.as_bytes(), &self.block_device);
+                       disk_inode.write_at(DIRENT_SZ * i, dirent_empty.as_bytes(), &self.block_device);
                     }
                 }
             })
         }
     }
     /// number of linkat
-    fn num_of_linkat(&self,id:u32) -> i32{
+    pub fn num_of_linkat(&self,id:u32) -> i32{
         let mut number = 0;
         self.read_disk_inode(|disk_inode|{
             assert!(disk_inode.is_dir());
@@ -110,9 +135,28 @@ impl Inode {
         });
         let new_direntry = DirEntry::new(new_name, old_id);
         self.modify_disk_inode(|disk_inode|{
-            disk_inode.write_at(disk_inode.size as usize , new_direntry.as_bytes(), &self.block_device);
+            let mut fs = self.fs.lock();
+            let file_count = (disk_inode.size as usize) / DIRENT_SZ;
+            let new_size = (file_count + 1) * DIRENT_SZ;
+            // increase size
+            self.increase_size(new_size as u32, disk_inode, &mut fs);
+            
+            disk_inode.write_at(
+                file_count * DIRENT_SZ as usize ,
+                new_direntry.as_bytes(),
+                &self.block_device);
         })
     }
+    /// find inode id by inode
+    fn find_inode_id_by_inode (&self) -> u32{
+        self.read_disk_inode(|disk_inode|{
+            return self
+            .fs
+            .lock()
+            .get_disk_inode_id(self.block_id as u32,self.block_offset);
+        })
+    }
+
     /// Find inode under a disk inode by name
     fn find_inode_id(&self, name: &str, disk_inode: &DiskInode) -> Option<u32> {
         // assert it is a directory

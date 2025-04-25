@@ -4,7 +4,7 @@
 //!
 //! `UPSafeCell<OSInodeInner>` -> `OSInode`: for static `ROOT_INODE`,we
 //! need to wrap `OSInodeInner` into `UPSafeCell`
-use super::File;
+use super::{File, StatMode};
 use crate::drivers::BLOCK_DEVICE;
 use crate::mm::UserBuffer;
 use crate::sync::UPSafeCell;
@@ -13,6 +13,7 @@ use alloc::vec::Vec;
 use bitflags::*;
 use easy_fs::{EasyFileSystem, Inode};
 use lazy_static::*;
+use crate::fs::Stat;
 
 /// inode in memory
 /// A wrapper around a filesystem inode
@@ -52,6 +53,10 @@ impl OSInode {
             v.extend_from_slice(&buffer[..len]);
         }
         v
+    }
+    /// return inode stat
+    pub fn inode_stat(&self){
+        
     }
 }
 
@@ -164,5 +169,29 @@ impl File for OSInode {
             total_write_size += write_size;
         }
         total_write_size
+    }
+    #[allow(warnings)]
+    fn stat(&self)->Option<super::Stat> {
+        let inode = self.inner
+        .exclusive_access()
+        .inode
+        .clone();
+        let (id,t) = inode.stat();
+        let n =ROOT_INODE.num_of_linkat(id as u32);
+        let mut mode = StatMode::NULL;
+        if t {
+            mode = StatMode::FILE;
+        } else {
+            mode = StatMode::DIR;
+        }
+        Some(Stat{
+            dev: 0,
+            ino: id,
+            mode: mode,
+            nlink: n as u32,
+            pad:[0;7]
+
+        })
+        
     }
 }
