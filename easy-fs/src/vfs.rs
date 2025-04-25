@@ -58,17 +58,35 @@ impl Inode {
     }
 
     /// unlinkat a path 
-    pub fn unlinkat_path (&self, name: &str){
+    pub fn unlinkat_path (&self, name: &str) ->isize{
         let mut id = 0;
 
         self.read_disk_inode(|disk_inode|{
             assert!(disk_inode.is_dir());
             if let Some(inode_id) = self.find_inode_id(name, disk_inode){
                 id = inode_id;
+            } 
+        });
+        if id == 0 {
+            return -1;
+        }
+        self.modify_disk_inode(|disk_inode|{
+            assert!(disk_inode.is_dir());
+            let file_count = (disk_inode.size as usize) / DIRENT_SZ;
+            let mut dirent = DirEntry::empty();
+            let  dirent_empty = DirEntry::empty();
+            for i in 0..file_count {
+                assert_eq!(
+                    disk_inode.read_at(DIRENT_SZ * i, dirent.as_bytes_mut(), &self.block_device,),
+                    DIRENT_SZ,
+                );
+                if dirent.name()== name {
+                   disk_inode.write_at(DIRENT_SZ * i, dirent_empty.as_bytes(), &self.block_device);
+                }
             }
         });
         // only delete link
-        if self.num_of_linkat(id) > 1 {
+        /*if self.num_of_linkat(id) > 1 {
             self.modify_disk_inode(|disk_inode|{
                 assert!(disk_inode.is_dir());
                 let file_count = (disk_inode.size as usize) / DIRENT_SZ;
@@ -102,7 +120,8 @@ impl Inode {
                     }
                 }
             })
-        }
+        }*/
+        0
     }
     /// number of linkat
     pub fn num_of_linkat(&self,id:u32) -> i32{

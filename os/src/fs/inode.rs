@@ -111,8 +111,8 @@ pub fn old_link_new ( old_name:&str , new_name: &str){
 }
 
 /// unlinkat
-pub fn unlinkat_path(name: &str){
-    ROOT_INODE.unlinkat_path(name);
+pub fn unlinkat_path(name: &str) -> isize{
+    ROOT_INODE.unlinkat_path(name)
 }
 
 /// Open a file

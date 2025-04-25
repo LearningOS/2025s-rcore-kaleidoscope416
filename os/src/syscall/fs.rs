@@ -110,6 +110,7 @@ pub fn sys_fstat(_fd: usize, _st: *mut Stat) -> isize {
         buffers[0].copy_from_slice(&_bytes[0..len]);
         buffers[1].copy_from_slice(&_bytes[len..]);
     }
+    println!("22222222222222222222222222222222222222222");
     0
 }
 
@@ -126,6 +127,7 @@ pub fn sys_linkat(_old_name: *const u8, _new_name: *const u8) -> isize {
         return -1;
     }
     old_link_new(&old_path, &new_path);
+    println!("1111111111111111111111111111111111111111111111");
     0
 }
 
